@@ -1,0 +1,3 @@
+-e file:[tests]
+doit-interface
+sphinx_rtd_theme
