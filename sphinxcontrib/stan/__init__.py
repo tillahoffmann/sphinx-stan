@@ -1,5 +1,6 @@
 from __future__ import annotations
 from docutils import nodes
+from pathlib import Path
 import re
 from sphinx import addnodes
 from sphinx.application import Sphinx
@@ -219,6 +220,7 @@ class StanAutoDocDirective(SphinxDirective):
     def run(self):
         # Load the stan file and get all the signatures.
         stan_file, = self.arguments
+        stan_file = Path(self.env.srcdir) / Path(self.env.docname).parent / stan_file
         with open(stan_file) as fp:
             text = fp.read()
 
