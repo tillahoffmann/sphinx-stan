@@ -310,17 +310,13 @@ class StanDomain(Domain):
         # Iterate over all functions to try and match the requested target.
         results = []
         for signature in self.data["functions"]:
-            # Skip if the identifier does not match.
-            if target["identifier"] != signature["identifier"]:
+            if not match_overloaded(target, signature):
                 continue
-
-            if (target_args := target.get("args")) is None:
-                # Not fully qualified, add candidate.
-                results.append(signature)
-            elif target_args == [arg | {"identifier": None} for arg in signature["args"]]:
-                # Fully qualified and matching.
+            # This was a fully-qualified match.
+            if target.get("args"):
                 results = [signature]
                 break
+            results.append(signature)
 
         if not results:
             LOGGER.warning("failed to resolve Stan function reference `%s`", target)
