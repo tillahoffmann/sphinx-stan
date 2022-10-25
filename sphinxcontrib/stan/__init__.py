@@ -24,7 +24,7 @@ OPEN_PATTERN = re.compile(r"\(\s*")
 CLOSE_PATTERN = re.compile(r"\)\s*")
 SEPARATOR_PATTERN = re.compile(r",\s*")
 NAMED_FIELD_PATTERN = re.compile(r"@(?P<field>param)\s+(?P<value>\w+)")
-FIELD_PATTERN = re.compile(r"@(?P<field>returns|throws)")
+FIELD_PATTERN = re.compile(r"@(?P<field>return|throws)")
 COMMENT_PREFIX_PATTERN = re.compile(r"^(/\*\*)|(\*/)|(\*\s?)")
 WHITESPACE_PATTERN = re.compile(r"\s+")
 TYPED_IDENTIFIER_PATTERN = re.compile(r"(?:array\s*\[[,\s]*\]\s*)?\w+\s+\w+")
@@ -313,7 +313,7 @@ class StanDomain(Domain):
             if not match_overloaded(target, signature):
                 continue
             # This was a fully-qualified match.
-            if target.get("args"):
+            if target.get("args") is not None:
                 results = [signature]
                 break
             results.append(signature)
