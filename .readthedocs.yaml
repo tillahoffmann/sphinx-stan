@@ -9,5 +9,4 @@ build:
 
 python:
    install:
-   - requirements: version-wizard_requirements.txt
    - requirements: requirements.txt
