@@ -1,6 +1,9 @@
 /**
 * Raise a matrix to a power (described using doxygen syntax in a separate Stan file).
 *
+* We can also reference other functions from within *.stan files, such as
+* :stan:func:`log(real, real)`.
+*
 * @param X Matrix to raise to a power.
 * @param y Power.
 * @return :math:`X^y`
