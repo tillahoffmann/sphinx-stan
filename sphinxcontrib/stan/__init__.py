@@ -4,12 +4,19 @@ from sphinx import addnodes
 from sphinx.application import Sphinx
 from sphinx.directives import ObjectDescription
 from sphinx.domains import Domain, ObjType
+from sphinx.roles import XRefRole
 from sphinx.util.docfields import Field, TypedField
-from typing import Union
+from sphinx.util.logging import getLogger
+from sphinx.util.nodes import make_refnode
+from typing import Iterable, Union
+import uuid
+
+
+LOGGER = getLogger(__name__)
 
 
 # Regular expression patterns for parsing and substitution.
-TYPE_PATTERN = re.compile(r"(?:array\s*\[(?P<dims>[,\s]*)\])?\s*(?P<base_type>\w+)\s+")
+TYPE_PATTERN = re.compile(r"(?:array\s*\[(?P<dims>[,\s]*)\])?\s*(?P<base_type>\w+)")
 IDENTIFIER_PATTERN = re.compile(r"(?P<identifier>\w+)\s*")
 OPEN_PATTERN = re.compile(r"\(\s*")
 CLOSE_PATTERN = re.compile(r"\)\s*")
@@ -17,6 +24,7 @@ SEPARATOR_PATTERN = re.compile(r",\s*")
 NAMED_FIELD_PATTERN = re.compile(r"@(?P<field>param)\s+(?P<value>\w+)")
 FIELD_PATTERN = re.compile(r"@(?P<field>returns|throws)")
 COMMENT_PREFIX_PATTERN = re.compile(r"^(/\*\*)|(\*/)|(\*\s?)")
+WHITESPACE_PATTERN = re.compile(r"\s+")
 
 
 def replace_doxygen_fields(line: str) -> str:
@@ -84,7 +92,7 @@ def parse_identifier(text: str) -> tuple[str, str]:
     return match.group("identifier"), text
 
 
-def parse_signature(text: str) -> tuple[dict, str]:
+def parse_signature(text: str, parse_arg_identifiers: bool = True) -> tuple[dict, str]:
     """
     Parse a function signature.
 
@@ -94,19 +102,21 @@ def parse_signature(text: str) -> tuple[dict, str]:
     Returns:
         signature: Dictionary comprising a function identifier, return type, and list of arguments.
         text: Remaining text after consuming the signature.
+        parse_arg_identifiers: Whether to parse argument identifiers.
     """
     return_type, text = parse_type(text)
+    _, text = match_and_consume(WHITESPACE_PATTERN, text)
     identifier, text = parse_identifier(text)
     _, text = match_and_consume(OPEN_PATTERN, text)
     args = []
     while True:
         try:
-            arg_type, text = parse_type(text)
-            arg_identifier, text = parse_identifier(text)
-            args.append({
-                "identifier": arg_identifier,
-                "type": arg_type,
-            })
+            arg = {}
+            arg["type"], text = parse_type(text)
+            if parse_arg_identifiers:
+                _, text = match_and_consume(WHITESPACE_PATTERN, text)
+                arg["identifier"], text = parse_identifier(text)
+            args.append(arg)
             _, text = match_and_consume(SEPARATOR_PATTERN, text)
         except ValueError:
             break
@@ -166,15 +176,89 @@ class StanFunctionDirective(ObjectDescription):
             self.content.data = [replace_doxygen_fields(line) for line in self.content.data]
         return super().run()
 
+    def add_target_and_index(self, name: str, sig: str, signode: addnodes.desc_signature) -> None:
+        node_id = str(uuid.uuid4())
+        signode["ids"].append(node_id)
+        self.env.get_domain("stan").add_function(sig, node_id)
+
 
 class StanDomain(Domain):
     name = "stan"
     object_types = {
         "function": ObjType("function", "func", "obj"),
     }
+    roles = {
+        "func": XRefRole(),
+    }
     directives = {
         "function": StanFunctionDirective,
     }
+    initial_data = {
+        "functions": [],
+    }
+
+    def get_objects(self) -> Iterable[tuple[str, str, str, str, str, int]]:
+        """
+        Yield a tuple comprising
+
+        - name: fully-qualified name.
+        - dispname: display name.
+        - type: a key in `self.object_types`.
+        - docname: document where the object is declared.
+        - anchor: anchor name for the object.
+        - priority: 1 (default), 0 (important), 2 (unimportant), -1 (hidden).
+        """
+        for signature in self.data["functions"]:
+            yield (signature["identifier"], signature["identifier"], "function",
+                   signature["docname"], signature["anchor"], 1)
+
+    def resolve_xref(self, env, fromdocname: str, builder, typ: str, target: str, node, contnode):
+        # Try to parse the full signature and revert to just the name if not possible.
+        try:
+            target, _ = parse_signature(f"void {target}", parse_arg_identifiers=False)
+        except ValueError:
+            target = {
+                "identifier": target,
+            }
+        # Iterate over all functions to try and match the requested target.
+        results = []
+        for signature in self.data["functions"]:
+            # Skip if the identifier does not match.
+            if target["identifier"] != signature["identifier"]:
+                continue
+            # Check if the target was fully-qualified.
+            if (target_args := target.get("args")) is not None \
+                    and target_args == [{"type": arg["type"]} for arg in signature["args"]]:
+                results = [signature]
+                break
+            results.append(signature)
+
+        if not results:
+            LOGGER.warning("failed to resolve Stan function reference `%s`", target)
+            return
+
+        for result in results:
+            todocname = result["docname"]
+            target_id = result["anchor"]
+
+        if len(results) > 1:
+            LOGGER.warning(
+                "multiple Stan functions found for reference `%s`: %s (using `%s`); qualify the "
+                "target by specifying argument types in the format "
+                "`{function_name}({arg1_type}, {arg2_type})`, e.g., `add(array [,] real, int)`",
+                target, target_id, results
+            )
+
+        return make_refnode(builder, fromdocname, todocname, target_id, contnode, target_id)
+
+    def add_function(self, sig: str, anchor: str) -> None:
+        """
+        Add a function to the domain.
+        """
+        signature, _ = parse_signature(sig)
+        signature["docname"] = self.env.docname
+        signature["anchor"] = anchor
+        self.data["functions"].append(signature)
 
 
 def setup(app: Sphinx) -> None:

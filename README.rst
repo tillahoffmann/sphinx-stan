@@ -8,7 +8,7 @@ Examples
 
 .. stan:function:: array [,] vector fancy_function(vector x, array[,,] int y)
 
-    This function does something fancy.
+    This function does something fancy. Also see :stan:func:`doxygen_function` and :stan:func:`overloaded(real)`.
 
     :param x: A vector.
     :param y: A two-dimensional array of integers.
@@ -32,3 +32,8 @@ Examples
     *  - first error
     *  - second error
     */
+
+
+.. stan:function:: real overloaded()
+
+.. stan:function:: real overloaded(real value)
