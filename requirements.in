@@ -1,3 +1,4 @@
 -e file:[tests]
+build
 doit-interface
 sphinx_rtd_theme
