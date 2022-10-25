@@ -37,3 +37,6 @@ Examples
 .. stan:function:: real overloaded()
 
 .. stan:function:: real overloaded(real value)
+
+.. stan:autodoc:: example.stan
+    :members: another_fancy_function

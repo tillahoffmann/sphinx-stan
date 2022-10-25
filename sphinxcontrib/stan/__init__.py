@@ -1,4 +1,5 @@
 from __future__ import annotations
+from docutils import nodes
 import re
 from sphinx import addnodes
 from sphinx.application import Sphinx
@@ -6,6 +7,7 @@ from sphinx.directives import ObjectDescription
 from sphinx.domains import Domain, ObjType
 from sphinx.roles import XRefRole
 from sphinx.util.docfields import Field, TypedField
+from sphinx.util.docutils import SphinxDirective
 from sphinx.util.logging import getLogger
 from sphinx.util.nodes import make_refnode
 from typing import Iterable, Union
@@ -25,6 +27,12 @@ NAMED_FIELD_PATTERN = re.compile(r"@(?P<field>param)\s+(?P<value>\w+)")
 FIELD_PATTERN = re.compile(r"@(?P<field>returns|throws)")
 COMMENT_PREFIX_PATTERN = re.compile(r"^(/\*\*)|(\*/)|(\*\s?)")
 WHITESPACE_PATTERN = re.compile(r"\s+")
+TYPED_IDENTIFIER_PATTERN = re.compile(r"(?:array\s*\[[,\s]*\]\s*)?\w+\s+\w+")
+FUNCTION_PATTERN = re.compile(
+    fr"(?:/\*\*(?P<doc>.*?)\*/\s*)?(?P<signature>{TYPED_IDENTIFIER_PATTERN.pattern}"
+    fr"\((?:{TYPED_IDENTIFIER_PATTERN.pattern})*(?:\s*,\s*{TYPED_IDENTIFIER_PATTERN.pattern})*\))",
+    re.S
+)
 
 
 def replace_doxygen_fields(line: str) -> str:
@@ -92,7 +100,8 @@ def parse_identifier(text: str) -> tuple[str, str]:
     return match.group("identifier"), text
 
 
-def parse_signature(text: str, parse_arg_identifiers: bool = True) -> tuple[dict, str]:
+def parse_signature(text: str, parse_arg_identifiers: bool = True, parse_return_type: bool = True) \
+        -> tuple[dict, str]:
     """
     Parse a function signature.
 
@@ -103,9 +112,12 @@ def parse_signature(text: str, parse_arg_identifiers: bool = True) -> tuple[dict
         signature: Dictionary comprising a function identifier, return type, and list of arguments.
         text: Remaining text after consuming the signature.
         parse_arg_identifiers: Whether to parse argument identifiers.
+        parse_return_type: Whether to parse the return type.
     """
-    return_type, text = parse_type(text)
-    _, text = match_and_consume(WHITESPACE_PATTERN, text)
+    return_type = None
+    if parse_return_type:
+        return_type, text = parse_type(text)
+        _, text = match_and_consume(WHITESPACE_PATTERN, text)
     identifier, text = parse_identifier(text)
     _, text = match_and_consume(OPEN_PATTERN, text)
     args = []
@@ -116,6 +128,8 @@ def parse_signature(text: str, parse_arg_identifiers: bool = True) -> tuple[dict
             if parse_arg_identifiers:
                 _, text = match_and_consume(WHITESPACE_PATTERN, text)
                 arg["identifier"], text = parse_identifier(text)
+            else:
+                arg["identifier"] = None
             args.append(arg)
             _, text = match_and_consume(SEPARATOR_PATTERN, text)
         except ValueError:
@@ -182,6 +196,79 @@ class StanFunctionDirective(ObjectDescription):
         self.env.get_domain("stan").add_function(sig, node_id)
 
 
+class StanAutoDocDirective(SphinxDirective):
+    @staticmethod
+    def _parse_members(args: str):
+        members = []
+        for arg in args.split(";"):
+            arg = arg.strip()
+            try:
+                signature, _ = parse_signature(arg, parse_arg_identifiers=False,
+                                               parse_return_type=False)
+            except ValueError:
+                signature = {"identifier": arg}
+            members.append(signature)
+        return members
+
+    required_arguments = 1
+    has_content = False
+    option_spec = {
+        "members": _parse_members,
+    }
+
+    def run(self):
+        # Load the stan file and get all the signatures.
+        stan_file, = self.arguments
+        with open(stan_file) as fp:
+            text = fp.read()
+
+        candidate_signatures = []
+        for doc, unparsed_signature in FUNCTION_PATTERN.findall(text):
+            signature, _ = parse_signature(unparsed_signature)
+            signature["input"] = unparsed_signature
+            signature["doc"] = doc
+            candidate_signatures.append(signature)
+
+        # Use all signatures if no members are given or filter preserving the requested order.
+        if self.options["members"]:
+            signatures = []
+            for member in self.options["members"]:
+                num_signatures = 0
+                for candidate in candidate_signatures:
+                    if match_overloaded(member, candidate):
+                        signatures.append(candidate)
+                        num_signatures += 1
+                if num_signatures == 0:
+                    LOGGER.warning("found no match for %s in `%s`", member, stan_file)
+        else:
+            signatures = candidate_signatures
+
+        # TODO: deduplicate signatures
+
+        # Add all the functions to the document by calling the documentation directive.
+        node = nodes.container()
+        for signature in signatures:
+            from docutils.statemachine import StringList
+            content = StringList([line.rstrip("\n") for line in signature["doc"].split("\n")])
+            directive = StanFunctionDirective("stan:function", [signature["input"]], {}, content, 0,
+                                              0, None, self.state, self.state_machine)
+            node += directive.run()
+
+        return [node]
+
+
+def match_overloaded(reference: dict, candidate: dict) -> bool:
+    """
+    Determine whether the reference signature matches a candidate.
+    """
+    if reference["identifier"] != candidate["identifier"]:
+        return False  # Definitely can't match if the identifiers are different.
+    if reference.get("args") is None:
+        return True  # Use a greedy match if there are no argument types.
+    # Check whether argument types match.
+    return [arg["type"] for arg in reference["args"]] == [arg["type"] for arg in candidate["args"]]
+
+
 class StanDomain(Domain):
     name = "stan"
     object_types = {
@@ -192,6 +279,7 @@ class StanDomain(Domain):
     }
     directives = {
         "function": StanFunctionDirective,
+        "autodoc": StanAutoDocDirective,
     }
     initial_data = {
         "functions": [],
@@ -215,23 +303,24 @@ class StanDomain(Domain):
     def resolve_xref(self, env, fromdocname: str, builder, typ: str, target: str, node, contnode):
         # Try to parse the full signature and revert to just the name if not possible.
         try:
-            target, _ = parse_signature(f"void {target}", parse_arg_identifiers=False)
+            target, _ = parse_signature(target, parse_arg_identifiers=False,
+                                        parse_return_type=False)
         except ValueError:
-            target = {
-                "identifier": target,
-            }
+            target = {"identifier": target}
         # Iterate over all functions to try and match the requested target.
         results = []
         for signature in self.data["functions"]:
             # Skip if the identifier does not match.
             if target["identifier"] != signature["identifier"]:
                 continue
-            # Check if the target was fully-qualified.
-            if (target_args := target.get("args")) is not None \
-                    and target_args == [{"type": arg["type"]} for arg in signature["args"]]:
+
+            if (target_args := target.get("args")) is None:
+                # Not fully qualified, add candidate.
+                results.append(signature)
+            elif target_args == [arg | {"identifier": None} for arg in signature["args"]]:
+                # Fully qualified and matching.
                 results = [signature]
                 break
-            results.append(signature)
 
         if not results:
             LOGGER.warning("failed to resolve Stan function reference `%s`", target)
