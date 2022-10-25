@@ -47,7 +47,7 @@ Using the :code:`:stan:func:\`...\`` role, we can reference specific overloaded 
 
 .. note::
 
-    sphinx-stan will try to resolve unqualified function references (such as :code:`:stan:func:\`log\``), but a warning will be issued if the unqualified reference is ambiguous.
+    sphinx-stan will try to resolve unqualified function references (such as :code:`:stan:func:\`log\``). A warning will be issued if the unqualified reference is ambiguous and the reference may point to any of the overloaded functions.
 
 Automatic documentation
 -----------------------
@@ -61,6 +61,8 @@ Functions can also be documented by loading them from a :code:`*.stan` file. For
 
 .. stan:autodoc:: example.stan
     :members: mat_pow; log1p_series(real, int)
+
+Documentation for each function must preceed it and be wrapped in :code:`/** ... */` comments.
 
 Syntax
 ------
