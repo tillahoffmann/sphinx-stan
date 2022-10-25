@@ -31,7 +31,8 @@ WHITESPACE_PATTERN = re.compile(r"\s+")
 TYPED_IDENTIFIER_PATTERN = re.compile(r"(?:array\s*\[[,\s]*\]\s*)?\w+\s+\w+")
 FUNCTION_PATTERN = re.compile(
     fr"(?:/\*\*(?P<doc>.*?)\*/\s*)?(?P<signature>{TYPED_IDENTIFIER_PATTERN.pattern}"
-    fr"\((?:{TYPED_IDENTIFIER_PATTERN.pattern})*(?:\s*,\s*{TYPED_IDENTIFIER_PATTERN.pattern})*\))",
+    fr"\(\s*(?:{TYPED_IDENTIFIER_PATTERN.pattern})*"
+    fr"(?:\s*,\s*{TYPED_IDENTIFIER_PATTERN.pattern})*\s*\))",
     re.S
 )
 
@@ -228,6 +229,7 @@ class StanAutoDocDirective(SphinxDirective):
 
         candidate_signatures = []
         for doc, unparsed_signature in FUNCTION_PATTERN.findall(text):
+            unparsed_signature = unparsed_signature.replace("\n", " ")
             signature, _ = parse_signature(unparsed_signature)
             signature["input"] = unparsed_signature
             signature["doc"] = doc
