@@ -200,6 +200,8 @@ class StanFunctionDirective(ObjectDescription):
 class StanAutoDocDirective(SphinxDirective):
     @staticmethod
     def _parse_members(args: str):
+        if not args:
+            return []
         members = []
         for arg in args.split(";"):
             arg = arg.strip()
@@ -232,9 +234,9 @@ class StanAutoDocDirective(SphinxDirective):
             candidate_signatures.append(signature)
 
         # Use all signatures if no members are given or filter preserving the requested order.
-        if self.options["members"]:
+        if members := self.options.get("members"):
             signatures = []
-            for member in self.options["members"]:
+            for member in members:
                 num_signatures = 0
                 for candidate in candidate_signatures:
                     if match_overloaded(member, candidate):
