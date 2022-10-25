@@ -2,9 +2,12 @@ sphinx-stan
 ===========
 
 .. image:: https://github.com/tillahoffmann/sphinx-stan/actions/workflows/main.yml/badge.svg
-    :target: https://github.com/tillahoffmann/sphinx-stan/actions/workflows/main.yml
+    :target: https://github.com/tillahoffmann/sphinx-stan/
+.. image:: https://badge.fury.io/py/sphinx-stan.svg
+    :target: https://pypi.org/project/sphinx-stan/
 .. image:: https://readthedocs.org/projects/sphinx-stan/badge/?version=latest
     :target: https://sphinx-stan.readthedocs.io/en/latest/?badge=latest
+
 
 sphinx-stan is a `Sphinx <https://www.sphinx-doc.org>`_ extension for documenting `Stan <https://mc-stan.org>`_ code. It supports both standard Sphinx fields as well as the `doxygen <https://doxygen.nl>`_ syntax `recommended by the Stan user guide <https://mc-stan.org/docs/stan-users-guide/documenting-functions.html>`_.
 
