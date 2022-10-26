@@ -12,5 +12,5 @@ manager(basename="tests", actions=[["pytest"]])
 manager(basename="lint", actions=[["flake8"]])
 
 with di.defaults(basename="package"):
-    task = manager(name="sdist", actions=[["python", "-m", "build", "."]])
+    task = manager(name="wheel", actions=[["python", "-m", "build", "."]])
     manager(name="check", actions=["twine check dist/*"], task_dep=[task])
