@@ -12,6 +12,7 @@ setup(
         "tests": [
             "flake8",
             "pytest",
+            "pytest-cov",
             "twine",
         ]
     },

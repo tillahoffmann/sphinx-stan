@@ -8,7 +8,9 @@ manager(basename="docs", actions=[
 ])
 manager(basename="requirements", targets=["requirements.txt"], actions=[["pip-compile"]],
         file_dep=["pyproject.toml", "requirements.in", "setup.py"])
-manager(basename="tests", actions=[["pytest"]])
+manager(basename="tests", actions=[
+    ["pytest", "--cov=sphinxcontrib.stan", "--cov-report=term-missing"],
+])
 manager(basename="lint", actions=[["flake8"]])
 
 with di.defaults(basename="package"):

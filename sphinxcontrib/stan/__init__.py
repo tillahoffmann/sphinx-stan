@@ -12,7 +12,7 @@ from sphinx.util.docfields import Field, TypedField
 from sphinx.util.docutils import SphinxDirective
 from sphinx.util.logging import getLogger
 from sphinx.util.nodes import make_refnode
-from typing import Iterable, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 import uuid
 
 
@@ -89,7 +89,7 @@ class TypedIdentifier:
             return instance, remainder
         return instance
 
-    def desc(self, node: addnodes.desc_signature) -> None:
+    def desc(self, node: addnodes.desc_signature, desc_name: Optional[Callable] = None) -> None:
         """
         Describe the object using Sphinx nodes.
         """
@@ -102,6 +102,10 @@ class TypedIdentifier:
             node += addnodes.desc_sig_punctuation("", "]")
             node += addnodes.desc_sig_space()
         node += addnodes.desc_sig_keyword_type("", self.type)
+        if self.identifier:
+            node += addnodes.desc_sig_space()
+            desc_name = desc_name or addnodes.desc_sig_name
+            node += desc_name(self.identifier, self.identifier)
 
     def __eq__(self, other: TypedIdentifier) -> bool:
         return self.identifier == other.identifier and self.type == other.type \
@@ -191,9 +195,7 @@ class Signature(TypedIdentifier):
         return 2
 
     def desc(self, node: addnodes.desc_signature) -> None:
-        super().desc(node)
-        node += addnodes.desc_sig_space()
-        node += addnodes.desc_name(self.identifier, self.identifier)
+        super().desc(node, addnodes.desc_name)
         if self.args is None:
             LOGGER.warning("signature `%s` is missing arguments for its description")
         params = addnodes.desc_parameterlist()
@@ -288,8 +290,12 @@ class StanAutoDocDirective(SphinxDirective):
         # Load the stan file and get all the signatures.
         stan_file, = self.arguments
         stan_file = Path(self.env.srcdir) / Path(self.env.docname).parent / stan_file
-        with open(stan_file) as fp:
-            text = fp.read()
+        try:
+            with open(stan_file) as fp:
+                text = fp.read()
+        except FileNotFoundError:
+            LOGGER.warning("`%s` does not exist")
+            return []
 
         candidate_signatures = []
         for doc, unparsed_signature in self.FUNCTION_PATTERN.findall(text):
