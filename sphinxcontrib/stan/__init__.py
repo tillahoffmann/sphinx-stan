@@ -221,7 +221,7 @@ class StanFunctionDirective(ObjectDescription):
     """
     NAMED_FIELD_PATTERN = re.compile(r"@(?P<field>param)\s+(?P<value>\w+)")
     FIELD_PATTERN = re.compile(r"@(?P<field>return|throws)")
-    COMMENT_PREFIX_PATTERN = re.compile(r"^(/\*\*)|(\*/)|(\*\s?)")
+    COMMENT_PREFIX_PATTERN = re.compile(r"^(?:(/\*\*)|(\*/)|(\*\s?))")
 
     doc_field_types = [
         TypedField("parameter", label="Parameters", names=("param",), typerolename="class",

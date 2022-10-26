@@ -42,7 +42,8 @@ def sphinx_build(make_app: Callable, tmp_path: Path, request: pytest.FixtureRequ
         else:
             pattern, = mark.args
             num_matches = 1
-        assert len(re.findall(pattern, content)) == num_matches
+        assert len(re.findall(pattern, content)) == num_matches, \
+            f"unexpected number of matches in {index_file}"
 
     return app
 
@@ -125,3 +126,56 @@ def test_missing_ref(sphinx_build) -> None:
 """)
 def test_ambiguous_ref(sphinx_build) -> None:
     assert "multiple Stan functions found for reference" in sphinx_build._warning.getvalue()
+
+
+@pytest.mark.sphinx_file("index.rst", """
+.. stan:function:: real foobar(int x)
+
+    There
+    are
+    multiple
+    lines.
+""")
+@pytest.mark.sphinx_pattern(r"There[\n\s]+are[\n\s]+multiple[\n\s]+lines.")
+def test_multiline_doc(sphinx_build) -> None:
+    pass
+
+
+@pytest.mark.sphinx_file("index.rst", """
+.. stan:function:: real foobar(int x)
+
+    /**
+    * There
+    * are
+    * multiple
+    * lines.
+    */
+""")
+@pytest.mark.sphinx_pattern(r"There[\n\s]+are[\n\s]+multiple[\n\s]+lines.")
+def test_multiline_doc_with_doxygen(sphinx_build) -> None:
+    pass
+
+
+@pytest.mark.sphinx_file("index.stan", """
+/**
+* There
+* are
+* multiple
+* lines.
+*/
+real foobar(int x) {}
+""")
+@pytest.mark.sphinx_file("index.rst", ".. stan:autodoc:: index.stan")
+@pytest.mark.sphinx_pattern(r"There[\n\s]+are[\n\s]+multiple[\n\s]+lines.")
+def test_multiline_autodoc_with_doxygen(sphinx_build) -> None:
+    pass
+
+
+@pytest.mark.sphinx_file("index.rst", """
+.. stan:function:: real foobar(int x)
+
+    * This is *important*.
+""")
+@pytest.mark.sphinx_pattern(r"<em>important</em>")
+def test_inline_markup(sphinx_build) -> None:
+    pass
