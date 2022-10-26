@@ -369,15 +369,15 @@ class StanDomain(Domain):
                 continue
             # This was a fully-qualified match.
             if match == 2:
-                results = [(docname, anchor)]
+                results = [(docname, anchor, signature)]
                 break
-            results.append((docname, anchor))
+            results.append((docname, anchor, signature))
 
         if not results:
             LOGGER.warning("failed to resolve Stan function reference `%s`", target)
             return
 
-        for todocname, target_id in results:
+        for todocname, target_id, target_signature in results:
             break
 
         if len(results) > 1:
@@ -385,7 +385,7 @@ class StanDomain(Domain):
                 "multiple Stan functions found for reference `%s`: %s (using `%s`); qualify the "
                 "target by specifying argument types in the format "
                 "`{function_name}({arg1_type}, {arg2_type})`, e.g., `add(array [,] real, int)`",
-                target, target_id, results
+                target, "; ".join([str(signature) for *_, signature in results]), target_signature,
             )
 
         return make_refnode(builder, fromdocname, todocname, target_id, contnode, target_id)
