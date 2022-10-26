@@ -15,3 +15,8 @@ autodoc with multi-line signatures
 ----------------------------------
 
 .. stan:autodoc:: multiline-signature.stan
+
+unqualified overloaded references
+---------------------------------
+
+:stan:func:`log`

@@ -1,59 +1,66 @@
 import pytest
-from sphinxcontrib.stan import parse_signature
+from sphinxcontrib.stan import Signature, TypedIdentifier
+from typing import Optional
 
 
 # Test examples from https://mc-stan.org/docs/stan-users-guide/functions-programming.html.
-@pytest.mark.parametrize("signature, expected, parse_arg_identifiers, parse_return_type", [
+@pytest.mark.parametrize("signature, expected, kwargs", [
     (
         "void basic()",
-        {"type": "void", "identifier": "basic", "args": []},
-        True, True,
+        Signature("basic", "void", args=[]),
+        None,
     ),
     (
         "real relative_diff(real x, real y)",
-        {"type": "real", "identifier": "relative_diff", "args": [
-            {"type": "real", "identifier": "x"},
-            {"type": "real", "identifier": "y"},
-        ]},
-        True, True,
+        Signature("relative_diff", "real", args=[TypedIdentifier("x", "real"),
+                                                 TypedIdentifier("y", "real")]),
+        None,
     ),
     (
         "real dbl_sqrt(real x)",
-        {"type": "real", "identifier": "dbl_sqrt", "args": [
-            {"type": "real", "identifier": "x"},
-        ]},
-        True, True,
+        Signature("dbl_sqrt", "real", args=[TypedIdentifier("x", "real")]),
+        None,
     ),
     (
         "real entropy(vector theta)",
-        {"type": "real", "identifier": "entropy", "args": [
-            {"type": "vector", "identifier": "theta"},
-        ]},
-        True, True,
+        Signature("entropy", "real", args=[TypedIdentifier("theta", "vector")]),
+        None,
     ),
     (
-        "array[] real baz(array[,] real x)",
-        {"type": ("real", 1), "identifier": "baz", "args": [
-            {"type": ("real", 2), "identifier": "x"},
-        ]},
-        True, True,
+        "array [] real baz(array [,] real x)",
+        Signature("baz", "real", 1, args=[TypedIdentifier("x", "real", 2)]),
+        None,
     ),
     (
-        "void overloaded(real)",
-        {"type": "void", "identifier": "overloaded", "args": [
-            {"type": "real", "identifier": None}
-        ]},
-        False, True,
+        "void overloaded(array [,,] real)",
+        Signature("overloaded", "void", args=[TypedIdentifier(None, "real", 3)]),
+        {"parse_arg_identifiers": False},
     ),
     (
-        "overloaded(real)",
-        {"type": None, "identifier": "overloaded", "args": [
-            {"type": "real", "identifier": None}
-        ]},
-        False, False,
+        "overloaded(array [,] real)",
+        Signature("overloaded", None, args=[TypedIdentifier(None, "real", 2)]),
+        {"parse_arg_identifiers": False, "parse_type": False},
     )
 ])
-def test_parse_signature(signature: str, expected: dict, parse_arg_identifiers: bool,
-                         parse_return_type: bool) -> None:
-    actual, _ = parse_signature(signature, parse_arg_identifiers, parse_return_type)
+def test_parse_signature(signature: str, expected: dict, kwargs: Optional[dict]) -> None:
+    kwargs = kwargs or {}
+    actual = Signature.parse(signature, **kwargs)
     assert actual == expected
+    assert str(actual) == signature
+
+
+@pytest.mark.parametrize("target, candidate, result", [
+    ("overload", "void overload(real x, int y)", 1),
+    ("overload(real, real)", "void overload(real x, int y)", 0),
+    ("overload(real)", "void overload(real x, int y)", 0),
+    ("overload(real, int)", "void overload(real x, int y)", 2),
+    ("overload(real, int)", "void overload(real x, array [,] int y)", 0),
+    ("overload(real, array [,,] int)", "void overload(real x, array [,] int y)", 0),
+    ("overload(real, array [,] int)", "void overload(real x, array [,] int y)", 2),
+    ("overloaded", "void overload(real x, int y)", 0),
+    ("overloaded(real, int)", "void overload(real x, int y)", 0),
+])
+def test_match_signature(target: str, candidate: str, result: int) -> None:
+    target = Signature.parse(target, parse_type=False, parse_arg_identifiers=False)
+    candidate = Signature.parse(candidate)
+    assert target.matches(candidate) == result
