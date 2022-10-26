@@ -296,6 +296,8 @@ class StanAutoDocDirective(SphinxDirective):
             unparsed_signature = unparsed_signature.replace("\n", " ")
             signature = Signature.parse(unparsed_signature, doc=doc)
             candidate_signatures.append(signature)
+        if not candidate_signatures:
+            LOGGER.warning("no signatures found in `%s`; is it empty?", stan_file)
 
         # Use all signatures if no members are given or filter preserving the requested order.
         if members := self.options.get("members"):
