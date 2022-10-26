@@ -19,23 +19,6 @@ import uuid
 LOGGER = getLogger(__name__)
 
 
-# Regular expression patterns for parsing and substitution.
-TYPE_PATTERN = re.compile(r"(?:array\s*\[(?P<dims>[,\s]*)\])?\s*(?P<base_type>\w+)")
-IDENTIFIER_PATTERN = re.compile(r"(?P<identifier>\w+)\s*")
-SEPARATOR_PATTERN = re.compile(r",\s*")
-NAMED_FIELD_PATTERN = re.compile(r"@(?P<field>param)\s+(?P<value>\w+)")
-FIELD_PATTERN = re.compile(r"@(?P<field>return|throws)")
-COMMENT_PREFIX_PATTERN = re.compile(r"^(/\*\*)|(\*/)|(\*\s?)")
-WHITESPACE_PATTERN = re.compile(r"\s+")
-TYPED_IDENTIFIER_PATTERN = re.compile(r"(?:array\s*\[[,\s]*\]\s*)?\w+\s+\w+")
-FUNCTION_PATTERN = re.compile(
-    fr"(?:/\*\*(?P<doc>.*?)\*/\s*)?(?P<signature>{TYPED_IDENTIFIER_PATTERN.pattern}"
-    fr"\(\s*(?:{TYPED_IDENTIFIER_PATTERN.pattern})*"
-    fr"(?:\s*,\s*{TYPED_IDENTIFIER_PATTERN.pattern})*\s*\))",
-    re.S
-)
-
-
 class MatchNotFoundError(ValueError):
     """
     No regular expression match was found.
@@ -65,6 +48,7 @@ def match_and_consume(pattern: Union[str, re.Pattern], text: str) -> tuple[re.Ma
 class TypedIdentifier:
     TYPE_PATTERN = re.compile(r"(?:array\s*\[(?P<dims>[,\s]*)\])?\s*(?P<base_type>\w+)")
     IDENTIFIER_PATTERN = re.compile(r"(?P<identifier>\w+)\s*")
+    WHITESPACE_PATTERN = re.compile(r"\s+")
 
     def __init__(self, identifier: str, type: str, dims: Optional[int] = None,
                  text: Optional[str] = None) -> None:
@@ -96,7 +80,7 @@ class TypedIdentifier:
             if dims is not None:
                 dims = dims.count(",") + 1
         if parse_type and parse_identifier:
-            _, remainder = match_and_consume(WHITESPACE_PATTERN, remainder)
+            _, remainder = match_and_consume(cls.WHITESPACE_PATTERN, remainder)
         if parse_identifier:
             match, remainder = match_and_consume(cls.IDENTIFIER_PATTERN, remainder)
             identifier = match.group("identifier")
@@ -139,6 +123,7 @@ class Signature(TypedIdentifier):
     """
     OPEN_PATTERN = re.compile(r"\(\s*")
     CLOSE_PATTERN = re.compile(r"\)\s*")
+    SEPARATOR_PATTERN = re.compile(r",\s*")
 
     def __init__(self, identifier: str, type: str, dims: Optional[int] = None,
                  args: list[TypedIdentifier] = None, doc: Optional[str] = None,
@@ -165,7 +150,7 @@ class Signature(TypedIdentifier):
                 arg, text = TypedIdentifier.parse(text, parse_identifier=parse_arg_identifiers,
                                                   return_remainder=True)
                 args.append(arg)
-                _, text = match_and_consume(SEPARATOR_PATTERN, text)
+                _, text = match_and_consume(cls.SEPARATOR_PATTERN, text)
             except MatchNotFoundError:
                 break
         _, text = match_and_consume(cls.CLOSE_PATTERN, text)
@@ -228,21 +213,14 @@ class Signature(TypedIdentifier):
         return f"{value}({', '.join(map(str, self.args))})"
 
 
-def replace_doxygen_fields(line: str) -> str:
-    """
-    Replace doxygen-style fields with sphinx fields. See
-    https://mc-stan.org/docs/stan-users-guide/documenting-functions.html for details.
-    """
-    line = COMMENT_PREFIX_PATTERN.sub("", line)
-    line = NAMED_FIELD_PATTERN.sub(r":\g<field> \g<value>:", line)
-    line = FIELD_PATTERN.sub(r":\g<field>:", line)
-    return line
-
-
 class StanFunctionDirective(ObjectDescription):
     """
     Directive for displaying user-defined functions.
     """
+    NAMED_FIELD_PATTERN = re.compile(r"@(?P<field>param)\s+(?P<value>\w+)")
+    FIELD_PATTERN = re.compile(r"@(?P<field>return|throws)")
+    COMMENT_PREFIX_PATTERN = re.compile(r"^(/\*\*)|(\*/)|(\*\s?)")
+
     doc_field_types = [
         TypedField("parameter", label="Parameters", names=("param",), typerolename="class",
                    typenames=("paramtype", "type"), can_collapse=True),
@@ -257,7 +235,7 @@ class StanFunctionDirective(ObjectDescription):
 
     def run(self):
         if self.has_content:
-            self.content.data = [replace_doxygen_fields(line) for line in self.content.data]
+            self.content.data = [self._replace_doxygen_fields(line) for line in self.content.data]
         return super().run()
 
     def add_target_and_index(self, name: str, sig: str, signode: addnodes.desc_signature) -> None:
@@ -265,8 +243,27 @@ class StanFunctionDirective(ObjectDescription):
         signode["ids"].append(node_id)
         self.env.get_domain("stan").add_function(sig, node_id)
 
+    @classmethod
+    def _replace_doxygen_fields(cls, line: str) -> str:
+        """
+        Replace doxygen-style fields with sphinx fields. See
+        https://mc-stan.org/docs/stan-users-guide/documenting-functions.html for details.
+        """
+        line = cls.COMMENT_PREFIX_PATTERN.sub("", line)
+        line = cls.NAMED_FIELD_PATTERN.sub(r":\g<field> \g<value>:", line)
+        line = cls.FIELD_PATTERN.sub(r":\g<field>:", line)
+        return line
+
 
 class StanAutoDocDirective(SphinxDirective):
+    TYPED_IDENTIFIER_PATTERN = re.compile(r"(?:array\s*\[[,\s]*\]\s*)?\w+\s+\w+")
+    FUNCTION_PATTERN = re.compile(
+        fr"(?:/\*\*(?P<doc>.*?)\*/\s*)?(?P<signature>{TYPED_IDENTIFIER_PATTERN.pattern}"
+        fr"\(\s*(?:{TYPED_IDENTIFIER_PATTERN.pattern})*"
+        fr"(?:\s*,\s*{TYPED_IDENTIFIER_PATTERN.pattern})*\s*\))",
+        re.S
+    )
+
     @staticmethod
     def _parse_members(args: str):
         if not args:
@@ -295,7 +292,7 @@ class StanAutoDocDirective(SphinxDirective):
             text = fp.read()
 
         candidate_signatures = []
-        for doc, unparsed_signature in FUNCTION_PATTERN.findall(text):
+        for doc, unparsed_signature in self.FUNCTION_PATTERN.findall(text):
             unparsed_signature = unparsed_signature.replace("\n", " ")
             signature = Signature.parse(unparsed_signature, doc=doc)
             candidate_signatures.append(signature)
