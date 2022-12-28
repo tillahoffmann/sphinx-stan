@@ -8,7 +8,6 @@ sphinx-stan
 .. image:: https://readthedocs.org/projects/sphinx-stan/badge/?version=latest
     :target: https://sphinx-stan.readthedocs.io/en/latest/?badge=latest
 
-
 sphinx-stan is a `Sphinx <https://www.sphinx-doc.org>`_ extension for documenting `Stan <https://mc-stan.org>`_ code. It supports both standard Sphinx fields as well as the `doxygen <https://doxygen.nl>`_ syntax `recommended by the Stan user guide <https://mc-stan.org/docs/stan-users-guide/documenting-functions.html>`_.
 
 Explicit documentation of functions
