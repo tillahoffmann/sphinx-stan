@@ -399,7 +399,7 @@ class StanDomain(Domain):
             results.append((docname, anchor, signature))
 
         if not results:
-            LOGGER.warning("failed to resolve Stan function reference `%s`", target)
+            LOGGER.warning("Stan func reference target not found `%s`", target)
             return
 
         for todocname, target_id, target_signature in results:

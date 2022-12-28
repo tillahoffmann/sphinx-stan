@@ -114,7 +114,7 @@ def test_autodoc_missing_file(sphinx_build) -> None:
 
 @pytest.mark.sphinx_file("index.rst", ":stan:func:`missing`")
 def test_missing_ref(sphinx_build) -> None:
-    assert "failed to resolve Stan function reference" in sphinx_build._warning.getvalue()
+    assert "Stan func reference target not found" in sphinx_build._warning.getvalue()
 
 
 @pytest.mark.sphinx_file("index.rst", """
