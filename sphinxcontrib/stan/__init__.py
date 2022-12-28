@@ -131,17 +131,19 @@ class Signature(TypedIdentifier):
 
     def __init__(self, identifier: str, type: str, dims: Optional[int] = None,
                  args: list[TypedIdentifier] = None, doc: Optional[str] = None,
-                 text: Optional[str] = None) -> None:
+                 source_info: Optional[tuple[str, int]] = None, text: Optional[str] = None) -> None:
         super().__init__(identifier, type, dims, text)
         self.args = args
         self.doc = doc
+        self.source_info = source_info
 
     @classmethod
     def parse(cls, text: str, parse_type: bool = True, parse_identifier: bool = True,
               parse_arg_identifiers: bool = True, doc: Optional[str] = None,
-              return_remainder: bool = False, **kwargs) -> tuple[TypedIdentifier, str]:
+              source_info: Optional[tuple[str, int]] = None, return_remainder: bool = False,
+              **kwargs) -> tuple[TypedIdentifier, str]:
         instance, text = super().parse(text, parse_type, parse_identifier, doc=doc,
-                                       return_remainder=True, **kwargs)
+                                       source_info=source_info, return_remainder=True, **kwargs)
         try:
             _, text = match_and_consume(cls.OPEN_PATTERN, text)
         except MatchNotFoundError:
@@ -212,7 +214,11 @@ class Signature(TypedIdentifier):
         value = super().__repr__()
         if self.args is None:
             return value
-        return f"{value}({', '.join(map(str, self.args))})"
+        value = f"{value}({', '.join(map(str, self.args))})"
+        if self.source_info:
+            filename, lineno = self.source_info
+            value = f"{value} at {filename}:{lineno}"
+        return value
 
 
 class StanFunctionDirective(ObjectDescription):
@@ -231,7 +237,7 @@ class StanFunctionDirective(ObjectDescription):
     ]
 
     def handle_signature(self, text: str, node: addnodes.desc_signature) -> str:
-        signature = Signature.parse(text)
+        signature = Signature.parse(text, source_info=self.get_source_info())
         signature.desc(node)
         return signature.identifier
 
@@ -243,7 +249,8 @@ class StanFunctionDirective(ObjectDescription):
     def add_target_and_index(self, name: str, sig: str, signode: addnodes.desc_signature) -> None:
         node_id = str(uuid.uuid4())
         signode["ids"].append(node_id)
-        self.env.get_domain("stan").add_function(sig, node_id)
+        signature = Signature.parse(sig, source_info=self.get_source_info())
+        self.env.get_domain("stan").add_function(sig, node_id, signature)
 
     @classmethod
     def _replace_doxygen_fields(cls, line: str) -> str:
@@ -298,9 +305,13 @@ class StanAutoDocDirective(SphinxDirective):
             return []
 
         candidate_signatures = []
-        for doc, unparsed_signature in self.FUNCTION_PATTERN.findall(text):
-            unparsed_signature = unparsed_signature.replace("\n", " ")
-            signature = Signature.parse(unparsed_signature, doc=doc)
+        for match in self.FUNCTION_PATTERN.finditer(text):
+            groups = match.groupdict()
+            unparsed_signature = groups["signature"].replace("\n", " ")
+            lineno = text[:match.end()].count("\n") + 1
+            source_info = (stan_file, lineno)
+            signature = Signature.parse(unparsed_signature, doc=groups["doc"],
+                                        source_info=source_info)
             candidate_signatures.append(signature)
         if not candidate_signatures:
             LOGGER.warning("no signatures found in `%s`; is it empty?", stan_file)
@@ -322,12 +333,18 @@ class StanAutoDocDirective(SphinxDirective):
 
         # TODO: deduplicate signatures
 
-        # Add all the functions to the document by calling the documentation directive.
+        # Add all the functions to document by calling the documentation directive.
         container = nodes.container()
+        signature: Signature
         for signature in signatures:
-            content = StringList([line.rstrip("\n") for line in signature.doc.split("\n")])
-            directive = StanFunctionDirective("stan:function", [signature.text], {}, content, 0,
-                                              0, None, self.state, self.state_machine)
+            if signature.doc:
+                content = StringList([line.rstrip("\n") for line in signature.doc.split("\n")])
+            else:
+                content = StringList([])
+            directive = StanFunctionDirective(
+                "stan:function", [signature.text], {}, content, 0, 0, None, self.state,
+                self.state_machine,
+            )
             container += directive.run()
 
         return [container]
@@ -390,19 +407,19 @@ class StanDomain(Domain):
 
         if len(results) > 1:
             LOGGER.warning(
-                "multiple Stan functions found for reference `%s`: %s (using `%s`); qualify the "
-                "target by specifying argument types in the format "
+                "multiple Stan functions found for reference `%s` at `%s:%d`: %s (using `%s`); "
+                "qualify the target by specifying argument types in the format "
                 "`{function_name}({arg1_type}, {arg2_type})`, e.g., `add(array [,] real, int)`",
-                target, "; ".join([str(signature) for *_, signature in results]), target_signature,
+                target, node.source, node.line,
+                "; ".join([str(signature) for *_, signature in results]), target_signature,
             )
 
         return make_refnode(builder, fromdocname, todocname, target_id, contnode, target_id)
 
-    def add_function(self, sig: str, anchor: str) -> None:
+    def add_function(self, sig: str, anchor: str, signature: Signature) -> None:
         """
         Add a function to the domain.
         """
-        signature = Signature.parse(sig)
         self.data["functions"].append((self.env.docname, anchor, signature))
 
 

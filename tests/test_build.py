@@ -125,7 +125,10 @@ def test_missing_ref(sphinx_build) -> None:
 :stan:func:`foobar`
 """)
 def test_ambiguous_ref(sphinx_build) -> None:
-    assert "multiple Stan functions found for reference" in sphinx_build._warning.getvalue()
+    value = sphinx_build._warning.getvalue()
+    assert "multiple Stan functions found for reference `foobar` at " in value
+    assert ": real foobar(int x) at " in value
+    assert "; real foobar(int x, int y) at " in value
 
 
 @pytest.mark.sphinx_file("index.rst", """
