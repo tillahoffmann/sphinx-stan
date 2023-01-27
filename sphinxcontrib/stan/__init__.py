@@ -301,7 +301,7 @@ class StanAutoDocDirective(SphinxDirective):
             with open(stan_file) as fp:
                 text = fp.read()
         except FileNotFoundError:
-            LOGGER.warning("`%s` does not exist")
+            LOGGER.warning("`%s` does not exist", stan_file)
             return []
 
         candidate_signatures = []
@@ -399,7 +399,8 @@ class StanDomain(Domain):
             results.append((docname, anchor, signature))
 
         if not results:
-            LOGGER.warning("Stan func reference target not found `%s`", target)
+            LOGGER.warning("Stan func reference target not found `%s` amongst %d candidates",
+                           target, len(self.data))
             return
 
         for todocname, target_id, target_signature in results:
