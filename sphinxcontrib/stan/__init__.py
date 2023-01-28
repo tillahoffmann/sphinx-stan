@@ -1,6 +1,7 @@
 from __future__ import annotations
 from docutils import nodes
 from docutils.statemachine import StringList
+import hashlib
 from pathlib import Path
 import re
 from sphinx import addnodes
@@ -13,7 +14,6 @@ from sphinx.util.docutils import SphinxDirective
 from sphinx.util.logging import getLogger
 from sphinx.util.nodes import make_refnode
 from typing import Callable, Iterable, Optional, Union
-import uuid
 
 
 LOGGER = getLogger(__name__)
@@ -210,14 +210,15 @@ class Signature(TypedIdentifier):
     def __eq__(self, other: TypedIdentifier) -> bool:
         return super().__eq__(other) and self.args == other.args
 
-    def __repr__(self) -> str:
+    def __str__(self):
         value = super().__repr__()
-        if self.args is None:
-            return value
-        value = f"{value}({', '.join(map(str, self.args))})"
+        return f"{value}({', '.join(map(str, self.args or []))})"
+
+    def __repr__(self) -> str:
+        value = self.__str__()
         if self.source_info:
             filename, lineno = self.source_info
-            value = f"{value} at {filename}:{lineno}"
+            value = f"{value} at `{filename}:{lineno}`"
         return value
 
 
@@ -247,9 +248,9 @@ class StanFunctionDirective(ObjectDescription):
         return super().run()
 
     def add_target_and_index(self, name: str, sig: str, signode: addnodes.desc_signature) -> None:
-        node_id = str(uuid.uuid4())
-        signode["ids"].append(node_id)
         signature = Signature.parse(sig, source_info=self.get_source_info())
+        node_id = hashlib.md5(str(signature).encode()).hexdigest()
+        signode["ids"].append(node_id)
         self.env.get_domain("stan").add_function(sig, node_id, signature)
 
     @classmethod
@@ -412,7 +413,7 @@ class StanDomain(Domain):
                 "qualify the target by specifying argument types in the format "
                 "`{function_name}({arg1_type}, {arg2_type})`, e.g., `add(array [,] real, int)`",
                 target, node.source, node.line,
-                "; ".join([str(signature) for *_, signature in results]), target_signature,
+                "; ".join([repr(signature) for *_, signature in results]), target_signature,
             )
 
         return make_refnode(builder, fromdocname, todocname, target_id, contnode, target_id)
