@@ -98,7 +98,7 @@ real func2(int x, int y) {}
 @pytest.mark.sphinx_pattern('<span class="pre">func2</span>', 1)
 @pytest.mark.sphinx_pattern('<span class="pre">missing</span>', 0)
 def test_autodoc_with_members(sphinx_build) -> None:
-    assert "found no match for `missing`" in sphinx_build._warning.getvalue()
+    assert "found no match for `missing()`" in sphinx_build._warning.getvalue()
 
 
 @pytest.mark.sphinx_file("index.stan", "")
@@ -126,7 +126,7 @@ def test_missing_ref(sphinx_build) -> None:
 """)
 def test_ambiguous_ref(sphinx_build) -> None:
     value = sphinx_build._warning.getvalue()
-    assert "multiple Stan functions found for reference `foobar` at `/" in value
+    assert "multiple Stan functions found for reference `foobar()` at `/" in value
     assert ": real foobar(int x) at `/" in value
     assert "; real foobar(int x, int y) at `/" in value
 
@@ -143,7 +143,7 @@ def test_ambiguous_ref(sphinx_build) -> None:
 """)
 def test_ambiguous_ref_autodoc(sphinx_build) -> None:
     value = sphinx_build._warning.getvalue()
-    assert "multiple Stan functions found for reference `foobar` at `/" in value
+    assert "multiple Stan functions found for reference `foobar()` at `/" in value
     assert ": real foobar(int x) at `/" in value
     assert "; real foobar(int x, int y) at `/" in value
 
@@ -198,4 +198,12 @@ def test_multiline_autodoc_with_doxygen(sphinx_build) -> None:
 """)
 @pytest.mark.sphinx_pattern(r"<em>important</em>")
 def test_inline_markup(sphinx_build) -> None:
+    pass
+
+
+@pytest.mark.sphinx_file("index.rst", """
+.. stan:function:: real foobar(int x)
+""")
+@pytest.mark.sphinx_pattern(r'id="f6a9b37385091209c1725e13647d1bdf"')
+def test_persistent_id(sphinx_build) -> None:
     pass
