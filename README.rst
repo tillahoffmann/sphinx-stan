@@ -10,6 +10,10 @@ sphinx-stan
 
 sphinx-stan is a `Sphinx <https://www.sphinx-doc.org>`_ extension for documenting `Stan <https://mc-stan.org>`_ code. It supports both standard Sphinx fields as well as the `doxygen <https://doxygen.nl>`_ syntax `recommended by the Stan user guide <https://mc-stan.org/docs/stan-users-guide/documenting-functions.html>`_.
 
+.. warning::
+
+    sphinx-stan is an early release; use it at your own risk. Bugs and feature requests can be filed on `GitHub <https://github.com/tillahoffmann/sphinx-stan/issues>`__.
+
 Explicit documentation of functions
 -----------------------------------
 
@@ -91,3 +95,11 @@ Alternatively, functions may also be documented using the doxygen syntax (see th
         :members: <semi-colon separated list of functions to document>
 
 If :code:`:members:` is omitted, all functions in the file are documented in the order they appear. Function names are matched using the same logic as for the :code:`:stan:func:\`...\`` cross-referencing logic. If the file contains overloaded functions and only an unqualified name is provided (i.e., without argument types), all overloaded functions with the given identifier will be documented in the order they appear.
+
+Installation
+------------
+
+The extension can be installed in two steps:
+
+1. Run :code:`pip install sphinx-stan` from the command line to install the package.
+2. Add :code:`"sphinxcontrib.stan"` to the list of `extensions <https://www.sphinx-doc.org/en/master/usage/extensions/index.html>`__ in your Sphinx configuration, typically :code:`conf.py`. You can view the configuration used to build this documentation `here <https://github.com/tillahoffmann/sphinx-stan/tree/main/conf.py>`__.
