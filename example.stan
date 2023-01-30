@@ -10,7 +10,7 @@
 * @throws An error if there's a problem.
 */
 matrix mat_pow(matrix X, real y) {
-    return ...;
+    return rep_matrix(0, 1, 1);  // Not the correct value, of course.
 }
 
 /**
@@ -22,7 +22,7 @@ Evaluate a series approximation of :math:`\log\left(1 + x\right)` with :math:`n`
   documentation because it does not match the :code:`:members:` field.
 */
 real log1p_series(real x, int n) {
-    return ...;
+    return 0;  // Not the correct value, of course.
 }
 
 
@@ -30,5 +30,5 @@ real log1p_series(real x, int n) {
 This function does not appear in the documentation.
 */
 real log1p_series(real x) {
-    return ...;
+    return 0;  // Not the correct value, of course.
 }

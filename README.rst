@@ -68,7 +68,10 @@ Functions can also be documented by loading them from a :code:`*.stan` file. For
 .. stan:autodoc:: example.stan
     :members: mat_pow; log1p_series(real, int)
 
-Documentation for each function must preceed it and be wrapped in :code:`/** ... */` comments.
+Documentation for each function must preceed it and be wrapped in :code:`/** ... */` comments. The content of the example file is:
+
+.. literalinclude:: example.stan
+    :language: stan
 
 Syntax
 ------
